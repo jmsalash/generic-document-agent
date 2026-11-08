@@ -2,6 +2,8 @@
 import { VOICES } from './gemini.js';
 import { MAX_DOC_TOKENS } from './document.js';
 
+const siteHost = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; } };
+
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const STYLE = `
@@ -96,6 +98,7 @@ export function setupPage(view, { saved = false, error = '' } = {}) {
   ${readiness(view)}
   ${saved ? '<p class="ok mono">Saved.</p>' : ''}${error ? `<p class="err mono">${esc(error)}</p>` : ''}
   <form method="post" action="/setup" enctype="multipart/form-data" class="card" id="setupForm">
+    <button type="submit" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">Save</button>
     <label for="apiKey">Gemini key ${view.keyHint ? `(set, ends in ${esc(view.keyHint)}; leave empty to keep it)` : '(free, from aistudio.google.com/apikey)'}</label>
     <input id="apiKey" name="apiKey" type="password" autocomplete="off" placeholder="${view.keyHint ? 'keep the current key' : 'paste your key'}">
     <label for="name">Agent name (optional): how it calls itself</label>
@@ -107,6 +110,10 @@ export function setupPage(view, { saved = false, error = '' } = {}) {
       <div><label for="pageTo">to page</label><input id="pageTo" name="pageTo" type="number" min="1" value="${view.pageTo || ''}" placeholder="last"></div>
     </div>
     <p class="note" id="pagesNote">Leave empty for the whole PDF. Use them to skip parts such as the index or a glossary, or to make an agent for one chapter.${view.docPdf && view.pdfTotal ? ` Your PDF has ${view.pdfTotal} pages${view.pageFrom || view.pageTo ? `; the agent uses pages ${view.pageFrom || 1} to ${view.pageTo || view.pdfTotal}` : ''}. Changing the pages and pressing Save reads it again, no need to upload it again.` : ''}</p>
+    <label for="siteUrl">Or a website address (the agent reads the whole site)</label>
+    <div class="voice"><input id="siteUrl" name="siteUrl" type="url" inputmode="url" placeholder="https://example.com" value="${esc(view.sourceUrl)}">
+      <button type="submit" name="action" value="read-site" class="ghost" id="readSite">${view.sourceUrl ? 'Read it again' : 'Read website'}</button></div>
+    ${view.sourceUrl ? `<p class="note ok" id="siteSource">From the website ${esc(siteHost(view.sourceUrl))}, ${view.pagesRead} page${view.pagesRead === 1 ? '' : 's'}, read on ${esc(new Date(view.readAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }))}. Up to 100 pages; sites that build their pages in the browser or need a login cannot be read.</p>` : '<p class="note">Up to 100 pages. Sites that build their pages in the browser or need a login cannot be read.</p>'}
     <label for="docText">Document text the agent uses (check it and correct it here; the free Gemini plan takes up to 32,000 tokens, about 24,000 words, and longer text is cut)</label>
     <textarea id="docText" name="docText">${esc(view.docText)}</textarea>
     <label for="instructions">Instructions for the agent: what it is for, its tone, what to stress, and any extra facts it may share beyond the document (it never talks about anything else)</label>
@@ -131,7 +138,8 @@ export function setupPage(view, { saved = false, error = '' } = {}) {
       const toCloud = e.submitter && e.submitter.name === 'action';
       save.disabled = true;
       save.textContent = 'Saving…';
-      document.getElementById('savingText').textContent = file.files.length
+      const site = e.submitter && e.submitter.value === 'read-site';
+      document.getElementById('savingText').textContent = site ? 'Reading the website. This can take a minute…' : file.files.length
         ? 'Saving, and Gemini is reading your document. This can take up to a minute…'
         : toCloud ? 'Saving and updating Cloudflare…' : 'Saving…';
       document.getElementById('saving').hidden = false;

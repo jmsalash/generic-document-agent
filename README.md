@@ -198,7 +198,10 @@ Open `http://localhost:8792/setup` (or `http://<computer's address>:8792/setup` 
    up to a minute); the text then appears in the box below, where you can check and correct it. You can also paste the
    text directly. For a PDF you can fill in **from page** and **to page** to use only part of it, for example to skip
    the index or a glossary, or to make an agent for one chapter. Changing the pages and pressing Save reads the saved
-   PDF again, without uploading it again. On Save the text is counted in tokens. The free Gemini plan takes up to 32,000
+   PDF again, without uploading it again. Instead of a document you can give a **website address** and press **Read website**: the
+   agent reads the whole site (up to 100 pages, following its links and its sitemap, respecting its robots.txt) and
+   uses its text as the document. **Read it again** refreshes it after the site changes. Sites that build their pages
+   in the browser with JavaScript, or need a login, cannot be read; paste their text instead. On Save the text is counted in tokens. The free Gemini plan takes up to 32,000
    tokens (about 24,000 words, or 50 pages): above 30,000 the page warns you, and above 32,000 the end of the document
    is cut off, with a warning saying how much was kept.
 4. **Instructions for the agent**: what the agent is for, its tone, what to stress, and any **extra facts** it may

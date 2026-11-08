@@ -6,7 +6,8 @@ import { Readable } from 'node:stream';
 import { isPrivateAddress } from './net.js';
 import { originAllowed } from './limits.js';
 import { mintToken } from './token.js';
-import { docToText, buildInstructions, fitToTokens, geminiCounter, estimateTokens, docFits, pdfPages } from './document.js';
+import { docToText, buildInstructions, fitToTokens, geminiCounter, estimateTokens, docFits, pdfPages, MAX_DOC_TOKENS } from './document.js';
+import { crawlSite } from './crawl.js';
 import { VOICES } from './gemini.js';
 import { setupPage, demoPage } from './pages.js';
 import { deployToCloudflare, removeFromCloudflare } from '../cloud/deploy.js';
@@ -68,7 +69,7 @@ const intIn = (v, fallback) => {
 
 export function createApp({
   store, limits, makeClient, fetchImpl = (...a) => fetch(...a), httpsPort = null, log = console,
-  deploy = { deployToCloudflare, removeFromCloudflare },
+  deploy = { deployToCloudflare, removeFromCloudflare }, crawl = crawlSite,
 }) {
   // Counts the document in tokens (with Gemini when there is a key) and keeps it within the free plan's limit.
   async function fit(docText, key) {
@@ -77,6 +78,29 @@ export function createApp({
     const out = await fitToTokens({ text: docText, count });
     if (out.cut) log.log?.(`document cut from ${out.originalTokens} to ${out.tokens} tokens`);
     return { docText: out.text, docTokens: out.tokens, docNotice: out.notice };
+  }
+
+  // Reads the whole website and makes its text the document, within the free plan's token limit.
+  async function readWebsite(siteUrl, key) {
+    let site;
+    try {
+      site = await crawl(siteUrl, { tooBig: async (t) => (await estimateTokens(t)) > MAX_DOC_TOKENS * 1.2 });
+    } catch (e) {
+      const msg = String(e?.message || e);
+      log.error?.(`website not read (${siteUrl}): ${msg.slice(0, 200)}`);
+      const why = msg === 'bad address' ? 'Please give a web address starting with https://'
+        : msg === 'no text' ? 'No text could be read from that website. It may build its pages in the browser; paste the text instead.'
+        : `That website could not be read (${msg.replace(/^unreachable: /, '')}).`;
+      throw new Error(`${NOT_CHANGED} ${why}`);
+    }
+    const fitted = await fit(site.text, key);
+    const read = `Read ${site.pages} page${site.pages === 1 ? '' : 's'} from ${site.host}.`;
+    store.set({
+      ...fitted, docNotice: fitted.docNotice ? `${read} ${fitted.docNotice}` : read,
+      sourceUrl: siteUrl, pagesRead: site.pages, readAt: new Date().toISOString(),
+      docPdf: false, pageFrom: 0, pageTo: 0, pdfTotal: 0,
+    });
+    log.log?.(`read ${site.pages} pages from ${site.host}`);
   }
 
   async function saveSetup(req) {
@@ -110,6 +134,13 @@ export function createApp({
     const pagesChanged = pageFrom !== cfg.pageFrom || pageTo !== cfg.pageTo;
     const file = form.get('docFile');
     const hasFile = file && typeof file === 'object' && file.size > 0;
+    const siteUrl = String(form.get('siteUrl') || '').trim();
+    if (!hasFile && siteUrl && (siteUrl !== cfg.sourceUrl || action === 'read-site')) {
+      store.set(patch); // everything else is kept even if the website cannot be read
+      await readWebsite(siteUrl, store.get().apiKey);
+      if (badWorker) throw new Error(badWorker);
+      return action;
+    }
     const storedPdf = !hasFile && pagesChanged && cfg.docPdf ? store.readFile('document-upload.pdf') : null;
     if (!hasFile && !storedPdf) {
       const docText = String(form.get('docText') ?? cfg.docText).replace(/\r\n/g, '\n').trim();
@@ -144,7 +175,7 @@ export function createApp({
     if (!storedPdf) store.saveFile(type === 'application/pdf' ? 'document-upload.pdf' : 'document-upload.txt', buffer);
     store.set({
       ...await fit(text, key),
-      docPdf: type === 'application/pdf',
+      docPdf: type === 'application/pdf', sourceUrl: '', pagesRead: 0, readAt: '',
       pageFrom: pages ? pageFrom : 0, pageTo: pages ? pageTo : 0, pdfTotal: pages ? pages.total : 0,
     });
     if (badWorker) throw new Error(badWorker);

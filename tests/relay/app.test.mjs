@@ -21,7 +21,7 @@ const SITE = 'https://example.com';
 const bodies = [];
 const sentPdfs = [];
 
-async function start({ pdfFails = false, deploy, pdfText = 'PDF document text' } = {}) {
+async function start({ pdfFails = false, deploy, pdfText = 'PDF document text', crawl } = {}) {
   const store = createStore(mkdtempSync(join(tmpdir(), 'cva-app-')));
   const makeClient = () => ({
     authTokens: { create: async () => ({ name: ['auth_tokens', 't1'].join('/') }) },
@@ -31,7 +31,7 @@ async function start({ pdfFails = false, deploy, pdfText = 'PDF document text' }
     },
   });
   const fetchImpl = async () => new Response(JSON.stringify({ name: ['auth_tokens', 't1'].join('/') }), { status: 200 });
-  const server = http.createServer(createApp({ store, limits: createLimits(), makeClient, fetchImpl, deploy, log: { error() {}, log() {} } }));
+  const server = http.createServer(createApp({ store, limits: createLimits(), makeClient, fetchImpl, deploy, crawl, log: { error() {}, log() {} } }));
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${server.address().port}`;
   const call = async (path, opts = {}) => {
@@ -416,5 +416,76 @@ test('PDF pages: only the chosen pages are read, and changing them re-reads the 
     const bad = await s.call('/setup', { method: 'POST', body: setupForm({ ...SETUP, docText: cfg.docText, pageFrom: '12' }) });
     assert.equal(bad.status, 400);
     assert.ok(bad.text.includes('your document was not changed. The PDF has 10 pages, so it cannot start at page 12.'));
+  } finally { s.close(); }
+});
+
+function fakeCrawl({ fail = null, pages = 37 } = {}) {
+  const calls = [];
+  const crawl = async (url, opts) => {
+    calls.push({ url, opts });
+    if (fail) throw new Error(fail);
+    return { text: `## Home\n(${url})\n\nKettles for sale.`, pages, host: new URL(url).hostname };
+  };
+  return { calls, crawl };
+}
+
+test('a website becomes the document; same address is not read again unless asked', async () => {
+  const c = fakeCrawl();
+  const s = await start({ crawl: c.crawl });
+  try {
+    const r = await s.call('/setup', { method: 'POST', body: setupForm({ ...SETUP, siteUrl: 'https://site.test' }) });
+    assert.equal(r.status, 303);
+    const cfg = s.store.get();
+    assert.equal(c.calls.length, 1);
+    assert.equal(cfg.docText, '## Home\n(https://site.test)\n\nKettles for sale.');
+    assert.equal(cfg.sourceUrl, 'https://site.test');
+    assert.equal(cfg.pagesRead, 37);
+    assert.ok(cfg.readAt);
+    assert.match(cfg.docNotice, /^Read 37 pages from site\.test\./);
+    const page = (await s.call('/setup')).text;
+    assert.ok(page.includes('From the website site.test, 37 pages, read on'));
+    assert.ok(page.includes('Read it again'));
+    assert.ok(page.includes('value="https://site.test"'));
+    assert.equal((await s.call('/health')).json().ok, true);
+    await s.call('/setup', { method: 'POST', body: setupForm({ ...SETUP, docText: cfg.docText, siteUrl: 'https://site.test' }) });
+    assert.equal(c.calls.length, 1);
+    await s.call('/setup', { method: 'POST', body: setupForm({ ...SETUP, docText: cfg.docText, siteUrl: 'https://site.test', action: 'read-site' }) });
+    assert.equal(c.calls.length, 2);
+    const { tooBig } = c.calls[0].opts;
+    assert.equal(await tooBig('x'.repeat(100)), false);
+    assert.equal(await tooBig('x'.repeat(32000 * 4 * 1.2 + 8)), true);
+  } finally { s.close(); }
+});
+
+test('website errors leave the document unchanged, in plain words', async () => {
+  for (const [fail, said] of [
+    ['unreachable: 404', 'That website could not be read (404).'],
+    ['no text', 'No text could be read from that website. It may build its pages in the browser; paste the text instead.'],
+    ['bad address', 'Please give a web address starting with https://'],
+  ]) {
+    const s = await start({ crawl: fakeCrawl({ fail }).crawl });
+    try {
+      await s.call('/setup', { method: 'POST', body: setupForm(SETUP) });
+      const r = await s.call('/setup', { method: 'POST', body: setupForm({ ...SETUP, siteUrl: 'https://site.test', name: 'Zed' }) });
+      assert.equal(r.status, 400);
+      assert.ok(r.text.includes('your document was not changed'), fail);
+      assert.ok(r.text.includes(said), said);
+      assert.equal(s.store.get().docText, 'Robotics engineer');
+      assert.equal(s.store.get().sourceUrl, '');
+      assert.equal(s.store.get().name, 'Zed');
+    } finally { s.close(); }
+  }
+});
+
+test('a file upload after a website replaces it', async () => {
+  const s = await start({ crawl: fakeCrawl().crawl });
+  try {
+    await s.call('/setup', { method: 'POST', body: setupForm({ ...SETUP, siteUrl: 'https://site.test' }) });
+    await s.call('/setup', { method: 'POST', body: setupForm({ ...SETUP, siteUrl: 'https://site.test' }, { data: 'Manual text', type: 'text/plain', name: 'm.txt' }) });
+    const cfg = s.store.get();
+    assert.equal(cfg.docText, 'Manual text');
+    assert.equal(cfg.sourceUrl, '');
+    assert.equal(cfg.pagesRead, 0);
+    assert.ok(!(await s.call('/setup')).text.includes('From the website'));
   } finally { s.close(); }
 });
