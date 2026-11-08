@@ -5,8 +5,8 @@ const UA = 'GenericDocumentAgent/1.0';
 const MAX_BYTES = 2 * 1024 * 1024;
 const TIMEOUT_MS = 10000;
 const MAX_SITEMAPS = 5;
-const SKIP_TAGS = new Set(['script', 'style', 'noscript', 'svg', 'nav', 'header', 'footer', 'form', 'template', 'iframe', 'head', 'button', 'select']);
-const INLINE_TAGS = new Set(['a', 'b', 'i', 'em', 'strong', 'span', 'small', 'code', 'abbr', 'sup', 'sub', 'mark', 'label', 'time', 'q', 'u', 's', 'cite', 'kbd', 'var', 'data']);
+const SKIP_TAGS = new Set(['script', 'style', 'noscript', 'svg', 'nav', 'header', 'footer', 'form', 'template', 'iframe', 'head', 'select']);
+const INLINE_TAGS = new Set(['button', 'a', 'b', 'i', 'em', 'strong', 'span', 'small', 'code', 'abbr', 'sup', 'sub', 'mark', 'label', 'time', 'q', 'u', 's', 'cite', 'kbd', 'var', 'data']);
 const NOT_PAGES = /\.(pdf|png|jpe?g|gif|svg|webp|avif|ico|zip|gz|mp4|mp3|wav|webm|docx?|xlsx?|pptx?|css|js|json|xml|txt|rss|atom)$/i;
 
 const bareHost = (u) => u.hostname.replace(/^www\./, '');
@@ -24,7 +24,7 @@ function hiddenElement(el) {
 }
 
 export function htmlToText(html, pageUrl) {
-  const root = parse(html, { comment: false });
+  const root = parse(html, { comment: false, blockTextElements: { script: true, noscript: true, style: true } });
   const base = root.querySelector('base[href]')?.getAttribute('href');
   let baseUrl;
   try { baseUrl = new URL(base || pageUrl, pageUrl); } catch { baseUrl = new URL(pageUrl); }
@@ -38,14 +38,14 @@ export function htmlToText(html, pageUrl) {
     } catch { /* not an address */ }
   }
   const parts = [];
-  const walk = (node) => {
+  const walk = (node, inPre = false) => {
     if (node.nodeType === NodeType.TEXT_NODE) { parts.push(node.text); return; }
     if (node.nodeType !== NodeType.ELEMENT_NODE && node !== root) return;
     const tag = (node.tagName || '').toLowerCase();
     if (SKIP_TAGS.has(tag) || (tag && hiddenElement(node))) return;
-    const block = tag && !INLINE_TAGS.has(tag);
+    const block = tag && !inPre && !INLINE_TAGS.has(tag);
     if (block) parts.push('\n');
-    for (const c of node.childNodes) walk(c);
+    for (const c of node.childNodes) walk(c, inPre || tag === 'pre');
     if (block) parts.push('\n');
   };
   walk(root);

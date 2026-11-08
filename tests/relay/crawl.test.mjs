@@ -76,3 +76,13 @@ test('errors', async () => {
   const down = async () => { throw new Error('getaddrinfo ENOTFOUND'); };
   await assert.rejects(crawlSite('https://down.test/', { fetchImpl: down }), /unreachable: ENOTFOUND/);
 });
+
+test('code blocks come out as text, not markup', () => {
+  const { text } = htmlToText('<html><body><pre><code><span style="color:red">const</span> x = <b>1</b>;\nnext()</code></pre></body></html>', 'https://site.test/');
+  assert.equal(text, 'const x = 1;\nnext()');
+});
+
+test('inside pre, highlighted pieces stay on one line', () => {
+  const { text } = htmlToText('<pre><div class="line"><button>const</button> <div>x</div> = 1;</div></pre>', 'https://site.test/');
+  assert.equal(text, 'const x = 1;');
+});
