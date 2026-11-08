@@ -489,3 +489,18 @@ test('a file upload after a website replaces it', async () => {
     assert.ok(!(await s.call('/setup')).text.includes('From the website'));
   } finally { s.close(); }
 });
+
+test('a website address without https:// is accepted', async () => {
+  const c = fakeCrawl();
+  const s = await start({ crawl: c.crawl });
+  try {
+    const page = (await s.call('/setup')).text;
+    assert.ok(page.includes('id="siteUrl" name="siteUrl" type="text"'), 'the browser must not block plain addresses');
+    const r = await s.call('/setup', { method: 'POST', body: setupForm({ ...SETUP, siteUrl: '  laliga.com/en-GB ' }) });
+    assert.equal(r.status, 303);
+    assert.equal(c.calls[0].url, 'https://laliga.com/en-GB');
+    assert.equal(s.store.get().sourceUrl, 'https://laliga.com/en-GB');
+    await s.call('/setup', { method: 'POST', body: setupForm({ ...SETUP, docText: s.store.get().docText, siteUrl: 'laliga.com/en-GB' }) });
+    assert.equal(c.calls.length, 1, 'same address, written without https://, is not read again');
+  } finally { s.close(); }
+});

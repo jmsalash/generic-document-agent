@@ -134,7 +134,8 @@ export function createApp({
     const pagesChanged = pageFrom !== cfg.pageFrom || pageTo !== cfg.pageTo;
     const file = form.get('docFile');
     const hasFile = file && typeof file === 'object' && file.size > 0;
-    const siteUrl = String(form.get('siteUrl') || '').trim();
+    let siteUrl = String(form.get('siteUrl') || '').trim();
+    if (siteUrl && !/^[a-z][a-z0-9+.-]*:\/\//i.test(siteUrl)) siteUrl = `https://${siteUrl.replace(/^\/+/, '')}`;
     if (!hasFile && siteUrl && (siteUrl !== cfg.sourceUrl || action === 'read-site')) {
       store.set(patch); // everything else is kept even if the website cannot be read
       await readWebsite(siteUrl, store.get().apiKey);
