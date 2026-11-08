@@ -1,0 +1,103 @@
+/* Document Agent: a yellow eye fixed to the top-right corner. Restyle with --cva-* variables. */
+.cva {
+  --eye: var(--cva-eye, #ffc21a); --size: 56px; --level: 0;
+  --ink: var(--cva-ink, #E8EAE6); --paper: var(--cva-paper, #101318); --card: var(--cva-card, #171B21);
+  --line: var(--cva-line, #2A2F36); --slate: var(--cva-slate, #98A1AC); --live: var(--cva-live, #ff6b5e); --link: var(--cva-link, #ffc21a);
+  position: fixed; top: 20px; right: 20px; z-index: 2147483000;
+  display: grid; grid-template-columns: auto var(--size); align-items: center; justify-items: end; gap: 10px 12px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  opacity: 0; pointer-events: none;
+  transition: opacity .4s ease, top .25s ease, right .25s ease;
+}
+.cva.shown { opacity: 1; pointer-events: auto; }
+.cva-eye {
+  grid-column: 2; grid-row: 1; width: var(--size); aspect-ratio: 1; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+  background: radial-gradient(circle at 50% 50%,
+    color-mix(in srgb, var(--eye) 25%, #fff) 0 7%,
+    var(--eye) 15% 36%,
+    color-mix(in srgb, var(--eye) 55%, transparent) 50%,
+    color-mix(in srgb, var(--eye) 18%, transparent) 62%,
+    transparent 71%);
+  filter: drop-shadow(0 0 calc(6px + var(--level) * 10px) color-mix(in srgb, var(--eye) 70%, transparent));
+  transition: width .25s ease, filter .3s ease, transform .1s ease;
+}
+.cva-eye:focus-visible { outline: 2px solid var(--eye); outline-offset: 2px; }
+.cva-bubble {
+  grid-column: 1; grid-row: 1; white-space: nowrap; font-size: .78rem; font-weight: 500;
+  background: var(--ink); color: var(--paper); padding: 6px 11px; border-radius: 999px; position: relative;
+  animation: cva-nudge 2.4s ease-in-out infinite;
+}
+.cva-bubble::after {
+  content: ""; position: absolute; right: -4px; top: 50%; width: 8px; height: 8px;
+  background: var(--ink); transform: translateY(-50%) rotate(45deg);
+}
+
+.cva[data-state="invite"] .cva-eye { animation: cva-glow 2.4s ease-in-out infinite; }
+.cva[data-state="connecting"] .cva-eye,
+.cva[data-state="thinking"] .cva-eye { animation: cva-pulse 1.1s ease-in-out infinite; }
+.cva[data-state="intro"] .cva-eye,
+.cva[data-state="speaking"] .cva-eye {
+  transition: filter .05s linear, transform .05s linear;
+  filter: brightness(calc(.85 + var(--level) * .6))
+          drop-shadow(0 0 calc(6px + var(--level) * 14px) color-mix(in srgb, var(--eye) 80%, transparent));
+  transform: scale(calc(1 + var(--level) * .06));
+}
+.cva[data-state="listening"] .cva-eye { animation: cva-breathe 3.2s ease-in-out infinite; }
+.cva[data-state="offline"] .cva-eye,
+.cva[data-state="busy"] .cva-eye { filter: grayscale(1) opacity(.45); cursor: default; }
+.cva[data-state="offline"] .cva-bubble,
+.cva[data-state="busy"] .cva-bubble { animation: none; }
+
+@keyframes cva-glow {
+  0%, 100% { filter: brightness(.95) drop-shadow(0 0 6px color-mix(in srgb, var(--eye) 60%, transparent)); }
+  50%      { filter: brightness(1.2) drop-shadow(0 0 16px var(--eye)); }
+}
+@keyframes cva-breathe {
+  0%, 100% { filter: brightness(.85) drop-shadow(0 0 5px color-mix(in srgb, var(--eye) 50%, transparent)); }
+  50%      { filter: brightness(1.15) drop-shadow(0 0 10px var(--eye)); }
+}
+@keyframes cva-pulse {
+  0%, 100% { transform: scale(1); filter: brightness(.75); }
+  50%      { transform: scale(.92); filter: brightness(1.1); }
+}
+@keyframes cva-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }
+
+.cva-panel {
+  grid-column: 1 / -1; width: min(300px, calc(100vw - 32px));
+  background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 10px 13px;
+  font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: .86rem; line-height: 1.45;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .25);
+}
+.cva-st {
+  display: flex; justify-content: space-between; gap: 10px;
+  font: 500 .66rem "IBM Plex Mono", monospace; text-transform: uppercase; letter-spacing: .1em; color: var(--slate);
+}
+.cva-st b { color: var(--live); font-weight: 500; }
+.cva-you { color: var(--slate); margin-top: 6px; }
+.cva-me { margin-top: 3px; max-height: 9.5em; overflow-y: auto; }
+.cva-you:empty, .cva-me:empty { display: none; }
+.cva-foot {
+  margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--line);
+  font: .64rem "IBM Plex Mono", monospace; color: var(--slate);
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+}
+.cva-foot a { color: var(--link); white-space: nowrap; }
+.cva-foot button {
+  font: inherit; background: none; border: 1px solid var(--line); color: var(--ink);
+  border-radius: 999px; padding: 1px 9px; cursor: pointer;
+}
+.cva .hide { display: none; }
+.cva-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.cva.scrolled { --size: 44px; top: 12px; right: 12px; }
+.cva.scrolled .cva-bubble { display: none; }
+@media (max-width: 560px) {
+  .cva { --size: 48px; top: 14px; right: 14px; }
+  .cva.scrolled { --size: 40px; top: 10px; right: 10px; }
+  .cva-bubble { font-size: .72rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cva .cva-eye, .cva .cva-bubble { animation: none !important; transition: none !important; }
+  .cva[data-state="intro"] .cva-eye, .cva[data-state="speaking"] .cva-eye { transform: none; }
+}
+@media print { .cva { display: none; } }

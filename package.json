@@ -1,0 +1,19 @@
+{
+  "name": "generic-document-agent",
+  "version": "1.0.0",
+  "description": "A talking AI agent for any document on your website, powered by Gemini, with your key kept off the page.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "exec node relay/server.js",
+    "test": "node --test 'tests/relay/*.test.mjs' 'tests/widget/*.test.mjs' 'tests/cloud/*.test.mjs'"
+  },
+  "dependencies": {
+    "@google/genai": "3.0.0",
+    "pdf-lib": "1.17.1",
+    "selfsigned": "^2.4.1"
+  }
+}

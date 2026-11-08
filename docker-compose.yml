@@ -1,0 +1,15 @@
+# Start with:  docker compose up -d --build          Setup page: http://localhost:8792/setup
+services:
+  document-agent:
+    build: .
+    image: generic-document-agent
+    container_name: document-agent
+    restart: unless-stopped
+    ports:
+      - "8792:8792"   # plain HTTP: setup page, demo page, widget
+      - "8793:8793"   # HTTPS (self-signed): for phones and other computers at home
+    volumes:
+      - document-agent-data:/app/data
+
+volumes:
+  document-agent-data:
